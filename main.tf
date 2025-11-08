@@ -9,9 +9,15 @@ terraform {
 
 provider "azurerm" {
   features {}
+
+  # Optional: specify your subscription if Terraform cannot detect it
+  # subscription_id = "<YOUR_SUBSCRIPTION_ID>"
+  # tenant_id       = "<YOUR_TENANT_ID>"
+  # client_id       = "<YOUR_CLIENT_ID>"
+  # client_secret   = "<YOUR_CLIENT_SECRET>"
 }
 
-# Existing Resource Group
+# Use existing Resource Group
 data "azurerm_resource_group" "devops" {
   name = "DevOps"
 }
@@ -51,7 +57,9 @@ resource "azurerm_cosmosdb_account" "cosmos" {
   }
 }
 
-# Table for visitor counter
+# -----------------------------
+# Cosmos DB Table
+# -----------------------------
 resource "azurerm_cosmosdb_table" "table" {
   name                = "counter"
   resource_group_name = data.azurerm_resource_group.devops.name
@@ -59,7 +67,7 @@ resource "azurerm_cosmosdb_table" "table" {
 }
 
 # -----------------------------
-# Service Plan (Linux)
+# Service Plan for Function App
 # -----------------------------
 resource "azurerm_service_plan" "function_plan" {
   name                = "azure-be-plan"
@@ -70,7 +78,7 @@ resource "azurerm_service_plan" "function_plan" {
 }
 
 # -----------------------------
-# Function App (Python)
+# Function App
 # -----------------------------
 resource "azurerm_linux_function_app" "function_app" {
   name                       = "azure-be"
@@ -82,16 +90,33 @@ resource "azurerm_linux_function_app" "function_app" {
   functions_extension_version = "~4"
 
   app_settings = {
-    "FUNCTIONS_WORKER_RUNTIME"      = "python"
-    "AzureWebJobsStorage"           = azurerm_storage_account.funcsa.primary_connection_string
-    "TABLE_NAME"                    = azurerm_cosmosdb_table.table.name
-    "COSMOS_TABLE_ENDPOINT"         = azurerm_cosmosdb_account.cosmos.endpoint
-    "COSMOS_TABLE_CONNECTION_STRING" = "DefaultEndpointsProtocol=https;AccountName=${azurerm_cosmosdb_account.cosmos.name};AccountKey=${azurerm_cosmosdb_account.cosmos.primary_key};TableEndpoint=${azurerm_cosmosdb_account.cosmos.endpoint};"
+    "FUNCTIONS_WORKER_RUNTIME"         = "python"
+    "AzureWebJobsStorage"              = azurerm_storage_account.funcsa.primary_connection_string
+    "TABLE_NAME"                       = azurerm_cosmosdb_table.table.name
+    "COSMOS_TABLE_ENDPOINT"            = azurerm_cosmosdb_account.cosmos.endpoint
+    "COSMOS_TABLE_CONNECTION_STRING"   = "DefaultEndpointsProtocol=https;AccountName=${azurerm_cosmosdb_account.cosmos.name};AccountKey=${azurerm_cosmosdb_account.cosmos.primary_key};TableEndpoint=${azurerm_cosmosdb_account.cosmos.endpoint};"
   }
 
   site_config {
     application_stack {
       python_version = "3.10"
     }
+  }
+}
+
+# -----------------------------
+# Initialize visitor entity in the table
+# -----------------------------
+# Terraform cannot insert data directly into Table API,
+# so we use an Azure Function to create the initial row or use Azure CLI / script.
+# Example (optional local-exec for first-time creation):
+resource "null_resource" "init_visitor" {
+  depends_on = [azurerm_cosmosdb_table.table]
+
+  provisioner "local-exec" {
+    command = <<EOT
+      az cosmosdb table create --account-name azure-be --name counter --resource-group DevOps
+      az cosmosdb table entity create --account-name azure-be --resource-group DevOps --name counter --partition-key counter --row-key visitors --properties count=0
+    EOT
   }
 }
