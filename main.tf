@@ -5,14 +5,15 @@ terraform {
       version = ">= 3.100.0"
     }
   }
-  required_version = ">= 1.4.0"
 }
 
 provider "azurerm" {
   features {}
 }
 
-# Use existing resource group
+# -----------------------------
+# Use existing Resource Group
+# -----------------------------
 data "azurerm_resource_group" "devops" {
   name = "DevOps"
 }
@@ -52,23 +53,23 @@ resource "azurerm_cosmosdb_account" "cosmos" {
   }
 }
 
-# Cosmos DB Table
-resource "azurerm_cosmosdb_table" "counter_table" {
-  name          = "counter"
+# Database Table
+resource "azurerm_cosmosdb_table" "table" {
+  name                = "counter"
   resource_group_name = data.azurerm_resource_group.devops.name
-  account_name  = azurerm_cosmosdb_account.cosmos.name
-  throughput    = 400
+  account_name        = azurerm_cosmosdb_account.cosmos.name
 }
 
 # -----------------------------
-# Service Plan (Linux Consumption)
+# Service Plan (Linux)
 # -----------------------------
 resource "azurerm_service_plan" "function_plan" {
   name                = "azure-be-plan"
   location            = data.azurerm_resource_group.devops.location
   resource_group_name = data.azurerm_resource_group.devops.name
   os_type             = "Linux"
-  sku_name            = "Y1"  # Linux Consumption plan
+  sku_name            = "Y1"
+  worker_count        = 1
 }
 
 # -----------------------------
@@ -86,9 +87,9 @@ resource "azurerm_linux_function_app" "function_app" {
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME" = "python"
     "AzureWebJobsStorage"      = azurerm_storage_account.funcsa.primary_connection_string
-    "COSMOS_TABLE_ENDPOINT"    = azurerm_cosmosdb_account.cosmos.table_endpoint
-    "COSMOS_TABLE_KEY"         = azurerm_cosmosdb_account.cosmos.primary_master_key
-    "TABLE_NAME"               = azurerm_cosmosdb_table.counter_table.name
+    "COSMOS_TABLE_ENDPOINT"    = azurerm_cosmosdb_account.cosmos.endpoint
+    "COSMOS_TABLE_KEY"         = azurerm_cosmosdb_account.cosmos.primary_key
+    "TABLE_NAME"               = azurerm_cosmosdb_table.table.name
   }
 
   site_config {
