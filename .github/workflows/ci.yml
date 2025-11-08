@@ -26,7 +26,7 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # 4️⃣ Extract values from AZURE_CREDENTIALS
+      # 4️⃣ Extract Service Principal details from AZURE_CREDENTIALS
       - name: Set Terraform Variables
         id: tfvars
         run: |
@@ -41,20 +41,16 @@ jobs:
 
       # 6️⃣ Terraform Plan
       - name: Terraform Plan
-        run: terraform plan -out=tfplan -input=false \
-          -var "subscription_id=$subscription_id" \
-          -var "tenant_id=$tenant_id" \
-          -var "client_id=$client_id" \
-          -var "client_secret=$client_secret"
+        run: terraform plan -out=tfplan -input=false -var "subscription_id=$subscription_id" -var "tenant_id=$tenant_id" -var "client_id=$client_id" -var "client_secret=$client_secret"
 
       # 7️⃣ Terraform Apply
       - name: Terraform Apply
         run: terraform apply -input=false tfplan
 
-      # 8️⃣ Deploy Python Function code to Function App
+      # 8️⃣ Deploy Python Function code to Azure Function App
       - name: Deploy Azure Function App
         uses: azure/functions-action@v1
         with:
-          app-name: azure-be              # Name of your Function App
-          package: ./counter              # Path to your Python function folder
+          app-name: azure-be                  # Match your Function App name in Terraform
+          package: ./counter                  # Path to your Python function folder
           publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
