@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   terraform:
@@ -12,37 +11,26 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Map GitHub secrets to Terraform environment variables
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
 
     steps:
-      # 1️⃣ Checkout repository
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.9.0
 
-      # 3️⃣ Terraform Init
       - name: Terraform Init
         run: terraform init
 
-      # 4️⃣ Terraform Plan
       - name: Terraform Plan
-        run: |
-          terraform plan -out=tfplan \
-            -var "subscription_id=$ARM_SUBSCRIPTION_ID" \
-            -var "tenant_id=$ARM_TENANT_ID" \
-            -var "client_id=$ARM_CLIENT_ID" \
-            -var "client_secret=$ARM_CLIENT_SECRET"
+        run: terraform plan -out=tfplan
 
-      # 5️⃣ Terraform Apply (only on main branch)
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
-        run: terraform apply -input=false tfplan
+        run: terraform apply -auto-approve tfplan
