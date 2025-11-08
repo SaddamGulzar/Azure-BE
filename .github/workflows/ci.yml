@@ -20,20 +20,33 @@ jobs:
         with:
           terraform_version: 1.9.5
 
-      # 3️⃣ Login to Azure using Service Principal
+      # 3️⃣ Azure login using Service Principal secret
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # 4️⃣ Terraform Init
+      # 4️⃣ Extract values from AZURE_CREDENTIALS and pass to Terraform
+      - name: Set Terraform Variables
+        id: tfvars
+        run: |
+          echo "subscription_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .subscriptionId)" >> $GITHUB_ENV
+          echo "tenant_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)" >> $GITHUB_ENV
+          echo "client_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)" >> $GITHUB_ENV
+          echo "client_secret=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)" >> $GITHUB_ENV
+
+      # 5️⃣ Terraform Init
       - name: Terraform Init
         run: terraform init
 
-      # 5️⃣ Terraform Plan
+      # 6️⃣ Terraform Plan
       - name: Terraform Plan
-        run: terraform plan -out=tfplan -input=false
+        run: terraform plan -out=tfplan -input=false \
+          -var "subscription_id=$subscription_id" \
+          -var "tenant_id=$tenant_id" \
+          -var "client_id=$client_id" \
+          -var "client_secret=$client_secret"
 
-      # 6️⃣ Terraform Apply
+      # 7️⃣ Terraform Apply
       - name: Terraform Apply
         run: terraform apply -input=false tfplan

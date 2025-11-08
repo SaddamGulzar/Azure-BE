@@ -7,17 +7,31 @@ terraform {
   }
 }
 
+# -----------------------------
+# Provider configuration
+# -----------------------------
 provider "azurerm" {
   features {}
 
-  # Optional: specify your subscription if Terraform cannot detect it
-  # subscription_id = "<YOUR_SUBSCRIPTION_ID>"
-  # tenant_id       = "<YOUR_TENANT_ID>"
-  # client_id       = "<YOUR_CLIENT_ID>"
-  # client_secret   = "<YOUR_CLIENT_SECRET>"
+  # If running in GitHub Actions with azure/login@v2,
+  # these will automatically be populated from AZURE_CREDENTIALS
+  subscription_id = var.subscription_id
+  tenant_id       = var.tenant_id
+  client_id       = var.client_id
+  client_secret   = var.client_secret
 }
 
-# Use existing Resource Group
+# -----------------------------
+# Variables for provider
+# -----------------------------
+variable "subscription_id" {}
+variable "tenant_id" {}
+variable "client_id" {}
+variable "client_secret" {}
+
+# -----------------------------
+# Existing Resource Group
+# -----------------------------
 data "azurerm_resource_group" "devops" {
   name = "DevOps"
 }
@@ -34,7 +48,7 @@ resource "azurerm_storage_account" "funcsa" {
 }
 
 # -----------------------------
-# Cosmos DB (Table API)
+# Cosmos DB Account (Table API)
 # -----------------------------
 resource "azurerm_cosmosdb_account" "cosmos" {
   name                = "azure-be"
@@ -101,22 +115,5 @@ resource "azurerm_linux_function_app" "function_app" {
     application_stack {
       python_version = "3.10"
     }
-  }
-}
-
-# -----------------------------
-# Initialize visitor entity in the table
-# -----------------------------
-# Terraform cannot insert data directly into Table API,
-# so we use an Azure Function to create the initial row or use Azure CLI / script.
-# Example (optional local-exec for first-time creation):
-resource "null_resource" "init_visitor" {
-  depends_on = [azurerm_cosmosdb_table.table]
-
-  provisioner "local-exec" {
-    command = <<EOT
-      az cosmosdb table create --account-name azure-be --name counter --resource-group DevOps
-      az cosmosdb table entity create --account-name azure-be --resource-group DevOps --name counter --partition-key counter --row-key visitors --properties count=0
-    EOT
   }
 }
