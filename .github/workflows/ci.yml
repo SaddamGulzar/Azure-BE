@@ -1,56 +1,50 @@
-name: CI - terraform + deploy
+name: Deploy Azure Function and Cosmos DB
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
-env:
-  TF_WORKING_DIR: .
-  APP_NAME: azure-be
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   terraform:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      # Checkout your repository code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.0
-
+      # Login to Azure using GitHub secret
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Terraform Init
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init -input=false
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
 
+      # Initialize Terraform
+      - name: Terraform Init
+        run: terraform init
+
+      # Plan Infrastructure
       - name: Terraform Plan
-        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -out=tfplan -input=false
 
+      # Apply Infrastructure (auto-approve)
       - name: Terraform Apply
-        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -input=false -auto-approve tfplan
 
-  deploy:
-    needs: terraform
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare function zip
-        run: |
-          zip -r function.zip counter requirements.txt
-
-      - name: Deploy to Function App
-        uses: azure/webapps-deploy@v2
+      # Deploy Azure Function App code
+      - name: Publish Azure Function App
+        uses: Azure/functions-action@v1
         with:
-          app-name: ${{ env.APP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: function.zip
+          app-name: "azure-be"
+          package: "."
