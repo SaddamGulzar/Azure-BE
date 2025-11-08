@@ -70,7 +70,6 @@ resource "azurerm_service_plan" "function_plan" {
   resource_group_name = azurerm_resource_group.rg.name
   sku_name            = "Y1"  # Consumption plan
   os_type             = "Linux"
-  kind                = "FunctionApp"
 }
 
 # Linux Function App
