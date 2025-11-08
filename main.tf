@@ -12,17 +12,17 @@ provider "azurerm" {
   features {}
 }
 
-# -------------------------
+#######################
 # Resource Group
-# -------------------------
+#######################
 resource "azurerm_resource_group" "rg" {
   name     = "DevOps"
   location = "East US"
 }
 
-# -------------------------
-# Storage Account for Function App
-# -------------------------
+#######################
+# Storage Account
+#######################
 resource "azurerm_storage_account" "funcsa" {
   name                     = "azurebefuncsa"
   resource_group_name      = azurerm_resource_group.rg.name
@@ -31,11 +31,11 @@ resource "azurerm_storage_account" "funcsa" {
   account_replication_type = "LRS"
 }
 
-# -------------------------
+#######################
 # Cosmos DB Account
-# -------------------------
+#######################
 resource "azurerm_cosmosdb_account" "cosmos" {
-  name                = "azure-be"
+  name                = "azurebecosmos"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   offer_type          = "Standard"
@@ -49,69 +49,51 @@ resource "azurerm_cosmosdb_account" "cosmos" {
   }
 }
 
-# -------------------------
-# App Service Plan
-# -------------------------
+#######################
+# Cosmos Table
+#######################
+resource "azurerm_cosmosdb_table" "counter_table" {
+  name                = "counter"
+  resource_group_name = azurerm_resource_group.rg.name
+  account_name        = azurerm_cosmosdb_account.cosmos.name
+  partition_key_path  = "/PartitionKey"
+  throughput          = 400
+}
+
+#######################
+# Service Plan
+#######################
 resource "azurerm_service_plan" "function_plan" {
   name                = "azure-be-plan"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   kind                = "Linux"
   reserved            = true
-  sku {
-    tier = "Dynamic"
-    size = "Y1"
-  }
+  os_type             = "Linux"   # required for Linux
+  sku_name            = "Y1"      # Consumption plan
 }
 
-# -------------------------
+#######################
 # Linux Function App
-# -------------------------
+#######################
 resource "azurerm_linux_function_app" "function_app" {
-  name                = "azure-be-func"
+  name                = "azure-be"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   service_plan_id     = azurerm_service_plan.function_plan.id
   storage_account_name       = azurerm_storage_account.funcsa.name
   storage_account_access_key = azurerm_storage_account.funcsa.primary_access_key
-  os_type                   = "Linux"
-
+  version             = "~4"    # Function runtime version
   site_config {
-    application_stack {
-      python_version = "3.11"
-    }
+    always_on = true
+    linux_fx_version = "Python|3.11"
   }
 
   app_settings = {
-    FUNCTIONS_WORKER_RUNTIME   = "python"
-    COSMOS_TABLE_ENDPOINT      = azurerm_cosmosdb_account.cosmos.table_endpoint
-    COSMOS_TABLE_KEY           = azurerm_cosmosdb_account.cosmos.primary_key
-    TABLE_NAME                 = "counter"
-  }
-}
-
-# -------------------------
-# Initialize Counter Table with Initial Entity
-# -------------------------
-resource "null_resource" "create_initial_counter" {
-  depends_on = [azurerm_linux_function_app.function_app]
-
-  provisioner "local-exec" {
-    command = <<EOT
-      az cosmosdb table create \
-        --account-name ${azurerm_cosmosdb_account.cosmos.name} \
-        --resource-group ${azurerm_resource_group.rg.name} \
-        --name counter \
-        --throughput 400
-
-      az cosmosdb table entity create \
-        --account-name ${azurerm_cosmosdb_account.cosmos.name} \
-        --resource-group ${azurerm_resource_group.rg.name} \
-        --table-name counter \
-        --partition-key "counter" \
-        --row-key "visitors" \
-        --properties '{"count":1}'
-    EOT
-    interpreter = ["bash", "-c"]
+    "AzureWebJobsStorage"     = azurerm_storage_account.funcsa.primary_connection_string
+    "FUNCTIONS_WORKER_RUNTIME" = "python"
+    "COSMOS_TABLE_ENDPOINT"   = azurerm_cosmosdb_account.cosmos.endpoint
+    "COSMOS_TABLE_KEY"        = azurerm_cosmosdb_account.cosmos.primary_master_key
+    "TABLE_NAME"              = azurerm_cosmosdb_table.counter_table.name
   }
 }
