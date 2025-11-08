@@ -11,7 +11,9 @@ provider "azurerm" {
   features {}
 }
 
+# -----------------------------
 # Existing Resource Group
+# -----------------------------
 data "azurerm_resource_group" "devops" {
   name = "DevOps"
 }
@@ -74,13 +76,19 @@ resource "azurerm_service_plan" "function_plan" {
 # Function App
 # -----------------------------
 resource "azurerm_linux_function_app" "function_app" {
-  name                       = "azure-be"
-  location                   = "Canada Central"
-  resource_group_name        = data.azurerm_resource_group.devops.name
-  service_plan_id            = azurerm_service_plan.function_plan.id
-  storage_account_name       = azurerm_storage_account.funcsa.name
-  storage_account_access_key = azurerm_storage_account.funcsa.primary_access_key
+  name                        = "azure-be"
+  location                    = "Canada Central"
+  resource_group_name         = data.azurerm_resource_group.devops.name
+  service_plan_id             = azurerm_service_plan.function_plan.id
+  storage_account_name        = azurerm_storage_account.funcsa.name
+  storage_account_access_key  = azurerm_storage_account.funcsa.primary_access_key
   functions_extension_version = "~4"
+
+  site_config {
+    application_stack {
+      python_version = "3.11"
+    }
+  }
 
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME" = "python"
@@ -89,6 +97,4 @@ resource "azurerm_linux_function_app" "function_app" {
     "COSMOS_TABLE_KEY"         = azurerm_cosmosdb_account.cosmos.primary_key
     "TABLE_NAME"               = azurerm_cosmosdb_table.table.name
   }
-
-  site_config {
-    application_stack {
+}
