@@ -5,95 +5,103 @@ terraform {
       version = "~> 3.0"
     }
   }
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.7.0"
 }
 
 provider "azurerm" {
   features {}
 }
 
-#######################
+##########################
 # Resource Group
-#######################
+##########################
 resource "azurerm_resource_group" "rg" {
   name     = "DevOps"
   location = "East US"
 }
 
-#######################
+##########################
 # Storage Account
-#######################
+##########################
 resource "azurerm_storage_account" "funcsa" {
-  name                     = "azurebefuncsa"
+  name                     = "azurebefuncsa"  # must be globally unique
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
 }
 
-#######################
+##########################
 # Cosmos DB Account
-#######################
+##########################
 resource "azurerm_cosmosdb_account" "cosmos" {
-  name                = "azurebecosmos"
+  name                = "azure-be"  # must be globally unique
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   offer_type          = "Standard"
   kind                = "GlobalDocumentDB"
+
   consistency_policy {
     consistency_level = "Session"
   }
+
+  capabilities {
+    name = "EnableTable"
+  }
+
   geo_location {
     location          = azurerm_resource_group.rg.location
     failover_priority = 0
   }
 }
 
-#######################
-# Cosmos Table
-#######################
+##########################
+# Cosmos DB Table
+##########################
 resource "azurerm_cosmosdb_table" "counter_table" {
   name                = "counter"
   resource_group_name = azurerm_resource_group.rg.name
   account_name        = azurerm_cosmosdb_account.cosmos.name
-  partition_key_path  = "/PartitionKey"
   throughput          = 400
+
+  partition_key {
+    name = "PartitionKey"
+    type = "String"
+  }
 }
 
-#######################
+##########################
 # Service Plan
-#######################
+##########################
 resource "azurerm_service_plan" "function_plan" {
-  name                = "azure-be-plan"
+  name                = "function-app-plan"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  kind                = "Linux"
-  reserved            = true
-  os_type             = "Linux"   # required for Linux
   sku_name            = "Y1"      # Consumption plan
+  os_type             = "Linux"
 }
 
-#######################
+##########################
 # Linux Function App
-#######################
+##########################
 resource "azurerm_linux_function_app" "function_app" {
   name                = "azure-be"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   service_plan_id     = azurerm_service_plan.function_plan.id
+
   storage_account_name       = azurerm_storage_account.funcsa.name
   storage_account_access_key = azurerm_storage_account.funcsa.primary_access_key
-  version             = "~4"    # Function runtime version
+  version                    = "~4"
+
   site_config {
-    always_on = true
     linux_fx_version = "Python|3.11"
   }
 
   app_settings = {
-    "AzureWebJobsStorage"     = azurerm_storage_account.funcsa.primary_connection_string
     "FUNCTIONS_WORKER_RUNTIME" = "python"
-    "COSMOS_TABLE_ENDPOINT"   = azurerm_cosmosdb_account.cosmos.endpoint
-    "COSMOS_TABLE_KEY"        = azurerm_cosmosdb_account.cosmos.primary_master_key
-    "TABLE_NAME"              = azurerm_cosmosdb_table.counter_table.name
+    "COSMOS_TABLE_ENDPOINT"    = azurerm_cosmosdb_account.cosmos.table_endpoint
+    "COSMOS_TABLE_KEY"         = azurerm_cosmosdb_account.cosmos.primary_master_key
+    "TABLE_NAME"               = azurerm_cosmosdb_table.counter_table.name
   }
 }
