@@ -5,54 +5,19 @@ terraform {
       version = ">= 3.100.0"
     }
   }
-  required_version = ">= 1.5.0"
 }
 
-# -----------------------------
-# Variables for Azure authentication
-# -----------------------------
-variable "subscription_id" {
-  type        = string
-  description = "Azure Subscription ID"
-}
-
-variable "tenant_id" {
-  type        = string
-  description = "Azure Tenant ID"
-}
-
-variable "client_id" {
-  type        = string
-  description = "Azure Service Principal Client ID"
-}
-
-variable "client_secret" {
-  type        = string
-  description = "Azure Service Principal Client Secret"
-  sensitive   = true
-}
-
-# -----------------------------
-# Provider
-# -----------------------------
 provider "azurerm" {
   features {}
-
-  subscription_id = var.subscription_id
-  tenant_id       = var.tenant_id
-  client_id       = var.client_id
-  client_secret   = var.client_secret
 }
 
-# -----------------------------
 # Existing Resource Group
-# -----------------------------
 data "azurerm_resource_group" "devops" {
   name = "DevOps"
 }
 
 # -----------------------------
-# Storage Account for Function App
+# Storage Account for Function
 # -----------------------------
 resource "azurerm_storage_account" "funcsa" {
   name                     = "azurebefuncsa"
@@ -63,7 +28,7 @@ resource "azurerm_storage_account" "funcsa" {
 }
 
 # -----------------------------
-# Cosmos DB Account (Table API)
+# Cosmos DB (Table API)
 # -----------------------------
 resource "azurerm_cosmosdb_account" "cosmos" {
   name                = "azure-be"
@@ -86,9 +51,7 @@ resource "azurerm_cosmosdb_account" "cosmos" {
   }
 }
 
-# -----------------------------
 # Cosmos DB Table
-# -----------------------------
 resource "azurerm_cosmosdb_table" "table" {
   name                = "counter"
   resource_group_name = data.azurerm_resource_group.devops.name
@@ -96,7 +59,7 @@ resource "azurerm_cosmosdb_table" "table" {
 }
 
 # -----------------------------
-# Linux Function App Service Plan
+# Service Plan (Linux)
 # -----------------------------
 resource "azurerm_service_plan" "function_plan" {
   name                = "azure-be-plan"
@@ -123,18 +86,11 @@ resource "azurerm_linux_function_app" "function_app" {
     "FUNCTIONS_WORKER_RUNTIME" = "python"
     "AzureWebJobsStorage"      = azurerm_storage_account.funcsa.primary_connection_string
     "COSMOS_TABLE_ENDPOINT"    = azurerm_cosmosdb_account.cosmos.endpoint
-    "COSMOS_TABLE_KEY"         = azurerm_cosmosdb_account.cosmos.primary_master_key
+    "COSMOS_TABLE_KEY"         = azurerm_cosmosdb_account.cosmos.primary_key
     "TABLE_NAME"               = azurerm_cosmosdb_table.table.name
   }
 
   site_config {
     linux_fx_version = "Python|3.11"
   }
-}
-
-# -----------------------------
-# Optional: Output Function App URL
-# -----------------------------
-output "function_app_url" {
-  value = azurerm_linux_function_app.function_app.default_hostname
 }
