@@ -3,7 +3,7 @@ name: Terraform Deploy Azure
 on:
   push:
     branches:
-      - main  # Run workflow when pushing to main branch
+      - main
   workflow_dispatch:
 
 jobs:
@@ -12,27 +12,28 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
+      # Azure credentials from GitHub secrets
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
     steps:
-      # 1. Checkout repository
-      - name: Checkout repo
+      # 1️⃣ Checkout the repo
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Setup Terraform
+      # 2️⃣ Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.9.0
 
-      # 3. Initialize Terraform
+      # 3️⃣ Terraform Init
       - name: Terraform Init
         run: terraform init
 
-      # 4. Terraform Plan
+      # 4️⃣ Terraform Plan
       - name: Terraform Plan
         run: terraform plan -out=tfplan \
              -var "subscription_id=$ARM_SUBSCRIPTION_ID" \
@@ -40,7 +41,7 @@ jobs:
              -var "client_id=$ARM_CLIENT_ID" \
              -var "client_secret=$ARM_CLIENT_SECRET"
 
-      # 5. Terraform Apply
+      # 5️⃣ Terraform Apply (only on main branch)
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
         run: terraform apply -input=false tfplan
