@@ -7,16 +7,47 @@ terraform {
   }
 }
 
-provider "azurerm" {
-  features {}
+# -----------------------------
+# Variables for Azure auth
+# -----------------------------
+variable "subscription_id" {
+  type = string
 }
 
+variable "tenant_id" {
+  type = string
+}
+
+variable "client_id" {
+  type = string
+}
+
+variable "client_secret" {
+  type = string
+}
+
+# -----------------------------
+# Azure Provider
+# -----------------------------
+provider "azurerm" {
+  features {}
+
+  subscription_id = var.subscription_id
+  tenant_id       = var.tenant_id
+  client_id       = var.client_id
+  client_secret   = var.client_secret
+}
+
+# -----------------------------
 # Existing Resource Group
+# -----------------------------
 data "azurerm_resource_group" "devops" {
   name = "DevOps"
 }
 
-# Storage Account
+# -----------------------------
+# Storage Account for Function App
+# -----------------------------
 resource "azurerm_storage_account" "funcsa" {
   name                     = "azurebefuncsa"
   resource_group_name      = data.azurerm_resource_group.devops.name
@@ -25,7 +56,9 @@ resource "azurerm_storage_account" "funcsa" {
   account_replication_type = "LRS"
 }
 
-# Cosmos DB Account (Table API)
+# -----------------------------
+# Cosmos DB (Table API)
+# -----------------------------
 resource "azurerm_cosmosdb_account" "cosmos" {
   name                = "azure-be"
   location            = "Canada Central"
@@ -54,7 +87,9 @@ resource "azurerm_cosmosdb_table" "table" {
   account_name        = azurerm_cosmosdb_account.cosmos.name
 }
 
-# Service Plan (Linux)
+# -----------------------------
+# Linux Service Plan
+# -----------------------------
 resource "azurerm_service_plan" "function_plan" {
   name                = "azure-be-plan"
   location            = "Canada Central"
@@ -64,7 +99,9 @@ resource "azurerm_service_plan" "function_plan" {
   worker_count        = 1
 }
 
+# -----------------------------
 # Function App
+# -----------------------------
 resource "azurerm_linux_function_app" "function_app" {
   name                        = "azure-be"
   location                    = "Canada Central"
