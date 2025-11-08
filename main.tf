@@ -1,11 +1,11 @@
 terraform {
-  required_version = ">= 1.5"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 3.0"
+      version = "~> 3.70"
     }
   }
+  required_version = ">= 1.7"
 }
 
 provider "azurerm" {
@@ -18,9 +18,9 @@ resource "azurerm_resource_group" "rg" {
   location = "East US"
 }
 
-# Storage Account
+# Storage Account for Function App
 resource "azurerm_storage_account" "funcsa" {
-  name                     = "azurebefuncsa"
+  name                     = "azurefuncsa1234" # must be globally unique
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
@@ -29,14 +29,16 @@ resource "azurerm_storage_account" "funcsa" {
 
 # Cosmos DB Account
 resource "azurerm_cosmosdb_account" "cosmos" {
-  name                = "azure-be"
+  name                = "azurebecosmos1234" # must be globally unique
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   offer_type          = "Standard"
   kind                = "GlobalDocumentDB"
+
   consistency_policy {
-    consistency_level = "Session"
+    consistency_level       = "Session"
   }
+
   geo_location {
     location          = azurerm_resource_group.rg.location
     failover_priority = 0
@@ -44,7 +46,7 @@ resource "azurerm_cosmosdb_account" "cosmos" {
 }
 
 # Cosmos DB SQL Database
-resource "azurerm_cosmosdb_sql_database" "db" {
+resource "azurerm_cosmosdb_sql_database" "counter_db" {
   name                = "counterdb"
   resource_group_name = azurerm_resource_group.rg.name
   account_name        = azurerm_cosmosdb_account.cosmos.name
@@ -55,28 +57,31 @@ resource "azurerm_cosmosdb_sql_container" "counter_container" {
   name                = "counter"
   resource_group_name = azurerm_resource_group.rg.name
   account_name        = azurerm_cosmosdb_account.cosmos.name
-  database_name       = azurerm_cosmosdb_sql_database.db.name
-  partition_key_path  = "/PartitionKey"
+  database_name       = azurerm_cosmosdb_sql_database.counter_db.name
+
+  partition_key_paths = ["/PartitionKey"]  # Must be a list
   throughput          = 400
 }
 
-# App Service Plan
+# App Service Plan for Function App
 resource "azurerm_service_plan" "function_plan" {
-  name                = "azure-be-plan"
+  name                = "azure-function-plan"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  sku_name            = "Y1"
+  sku_name            = "Y1"  # Consumption plan
   os_type             = "Linux"
+  kind                = "FunctionApp"
 }
 
 # Linux Function App
 resource "azurerm_linux_function_app" "function_app" {
-  name                = "azure-be-function"
+  name                = "azure-function-app1234"  # must be globally unique
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   service_plan_id     = azurerm_service_plan.function_plan.id
   storage_account_name = azurerm_storage_account.funcsa.name
   storage_account_access_key = azurerm_storage_account.funcsa.primary_access_key
+  version             = "~4"
 
   site_config {
     application_stack {
@@ -85,10 +90,7 @@ resource "azurerm_linux_function_app" "function_app" {
   }
 
   app_settings = {
-    "FUNCTIONS_WORKER_RUNTIME" = "python"
-    "COSMOS_CONTAINER_NAME"    = azurerm_cosmosdb_sql_container.counter_container.name
-    "COSMOS_ACCOUNT_NAME"      = azurerm_cosmosdb_account.cosmos.name
-    "COSMOS_ACCOUNT_KEY"       = azurerm_cosmosdb_account.cosmos.primary_master_key
-    "COSMOS_DATABASE_NAME"     = azurerm_cosmosdb_sql_database.db.name
+    "COSMOS_DB_ACCOUNT" = azurerm_cosmosdb_account.cosmos.name
+    "COSMOS_DB_KEY"     = azurerm_cosmosdb_account.cosmos.primary_master_key
   }
 }
