@@ -7,39 +7,12 @@ terraform {
   }
 }
 
-# -----------------------------
-# Variables for Azure auth
-# -----------------------------
-variable "subscription_id" {
-  type = string
-}
-
-variable "tenant_id" {
-  type = string
-}
-
-variable "client_id" {
-  type = string
-}
-
-variable "client_secret" {
-  type = string
-}
-
-# -----------------------------
-# Azure Provider
-# -----------------------------
 provider "azurerm" {
   features {}
-
-  subscription_id = var.subscription_id
-  tenant_id       = var.tenant_id
-  client_id       = var.client_id
-  client_secret   = var.client_secret
 }
 
 # -----------------------------
-# Existing Resource Group
+# Use existing Resource Group
 # -----------------------------
 data "azurerm_resource_group" "devops" {
   name = "DevOps"
@@ -80,7 +53,7 @@ resource "azurerm_cosmosdb_account" "cosmos" {
   }
 }
 
-# Cosmos DB Table
+# Cosmos DB Table for Visitor Counter
 resource "azurerm_cosmosdb_table" "table" {
   name                = "counter"
   resource_group_name = data.azurerm_resource_group.devops.name
@@ -88,19 +61,19 @@ resource "azurerm_cosmosdb_table" "table" {
 }
 
 # -----------------------------
-# Linux Service Plan
+# Linux Service Plan for Function App
 # -----------------------------
 resource "azurerm_service_plan" "function_plan" {
   name                = "azure-be-plan"
   location            = "Canada Central"
   resource_group_name = data.azurerm_resource_group.devops.name
   os_type             = "Linux"
-  sku_name            = "Y1"
+  sku_name            = "Y1" # Consumption Plan
   worker_count        = 1
 }
 
 # -----------------------------
-# Function App
+# Linux Function App
 # -----------------------------
 resource "azurerm_linux_function_app" "function_app" {
   name                        = "azure-be"
@@ -112,9 +85,14 @@ resource "azurerm_linux_function_app" "function_app" {
   functions_extension_version = "~4"
 
   app_settings = {
-    "FUNCTIONS_WORKER_RUNTIME"       = "python"
-    "AzureWebJobsStorage"            = azurerm_storage_account.funcsa.primary_connection_string
-    "COSMOS_TABLE_CONNECTION_STRING" = azurerm_storage_account.funcsa.primary_connection_string
-    "TABLE_NAME"                     = azurerm_cosmosdb_table.table.name
+    "FUNCTIONS_WORKER_RUNTIME" = "python"
+    "AzureWebJobsStorage"      = azurerm_storage_account.funcsa.primary_connection_string
+    "COSMOS_TABLE_ENDPOINT"    = azurerm_cosmosdb_account.cosmos.endpoint
+    "COSMOS_TABLE_KEY"         = azurerm_cosmosdb_account.cosmos.primary_key
+    "TABLE_NAME"               = azurerm_cosmosdb_table.table.name
+  }
+
+  site_config {
+    linux_fx_version = "PYTHON|3.11"
   }
 }
