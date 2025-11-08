@@ -10,40 +10,48 @@ permissions:
   contents: read
 
 jobs:
-  terraform:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout your repository code
-      - name: Checkout code
+      # Step 1 — Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Login to Azure using GitHub secret
+      # Step 2 — Azure login using service principal
       - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Setup Terraform
+      # Step 3 — Export credentials for Terraform provider
+      - name: Set Azure environment variables for Terraform
+        run: |
+          echo "ARM_CLIENT_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).clientId }}" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=${{ fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=${{ fromJson(secrets.AZURE_CREDENTIALS).tenantId }}" >> $GITHUB_ENV
+
+      # Step 4 — Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.8.5
 
-      # Initialize Terraform
+      # Step 5 — Terraform init
       - name: Terraform Init
         run: terraform init
 
-      # Plan Infrastructure
+      # Step 6 — Terraform plan
       - name: Terraform Plan
         run: terraform plan -out=tfplan -input=false
 
-      # Apply Infrastructure (auto-approve)
+      # Step 7 — Terraform apply
       - name: Terraform Apply
         run: terraform apply -input=false -auto-approve tfplan
 
-      # Deploy Azure Function App code
-      - name: Publish Azure Function App
+      # Step 8 — Deploy Azure Function App code
+      - name: Deploy Function App Code
         uses: Azure/functions-action@v1
         with:
           app-name: "azure-be"
