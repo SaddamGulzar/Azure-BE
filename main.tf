@@ -9,7 +9,7 @@ terraform {
 }
 
 provider "azurerm" {
-  features = {}
+  features {}
 }
 
 # Resource Group
