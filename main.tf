@@ -5,7 +5,6 @@ terraform {
       version = ">=3.0"
     }
   }
-
   required_version = ">=1.3.0"
 }
 
@@ -40,7 +39,7 @@ resource "azurerm_cosmosdb_account" "cosmos" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   offer_type          = "Standard"
-  kind                = "GlobalDocumentDB"
+  kind                = "MongoDB"   # For table API, you can also use Table or SQL API
   consistency_policy {
     consistency_level = "Session"
   }
@@ -52,7 +51,7 @@ resource "azurerm_cosmosdb_account" "cosmos" {
 }
 
 # -------------------
-# Cosmos DB Table
+# Cosmos DB Table (for Table API)
 # -------------------
 resource "azurerm_cosmosdb_table" "counter_table" {
   name                = "counter"
@@ -60,37 +59,19 @@ resource "azurerm_cosmosdb_table" "counter_table" {
   account_name        = azurerm_cosmosdb_account.cosmos.name
   throughput          = 400
 
-  schema {
-    column {
-      name = "PartitionKey"
-      type = "String"
-    }
-
-    column {
-      name = "RowKey"
-      type = "String"
-    }
-
-    column {
-      name = "count"
-      type = "Number"
-    }
-
-    partition_key {
-      paths = ["/PartitionKey"]
-      kind  = "Hash"
-    }
-  }
+  # Use partition_key as a string (Terraform v3.x does NOT support 'schema' block)
+  partition_key_path = "/PartitionKey"
 }
 
 # -------------------
-# App Service Plan
+# App Service Plan (Linux)
 # -------------------
 resource "azurerm_service_plan" "function_plan" {
   name                = "azure-be-plan"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
-  sku_name            = "Y1"
+  os_type             = "Linux"        # Required argument
+  sku_name            = "Y1"           # Consumption plan for Functions
   kind                = "FunctionApp"
   reserved            = true
 }
@@ -103,18 +84,16 @@ resource "azurerm_linux_function_app" "function_app" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   service_plan_id     = azurerm_service_plan.function_plan.id
-  storage_account_name = azurerm_storage_account.funcsa.name
-  storage_account_access_key = azurerm_storage_account.funcsa.primary_access_key
-  os_type             = "Linux"
-  version             = "~4"
+  storage_account_name        = azurerm_storage_account.funcsa.name
+  storage_account_access_key  = azurerm_storage_account.funcsa.primary_access_key
 
   site_config {
     linux_fx_version = "Python|3.11"
     app_settings = {
-      FUNCTIONS_WORKER_RUNTIME   = "python"
-      COSMOS_TABLE_ENDPOINT      = azurerm_cosmosdb_account.cosmos.endpoint
-      COSMOS_TABLE_KEY           = azurerm_cosmosdb_account.cosmos.primary_master_key
-      TABLE_NAME                 = azurerm_cosmosdb_table.counter_table.name
+      FUNCTIONS_WORKER_RUNTIME = "python"
+      COSMOS_TABLE_ENDPOINT    = azurerm_cosmosdb_account.cosmos.endpoint
+      COSMOS_TABLE_KEY         = azurerm_cosmosdb_account.cosmos.primary_master_key
+      TABLE_NAME               = azurerm_cosmosdb_table.counter_table.name
     }
   }
 }
