@@ -1,35 +1,56 @@
-name: Terraform Deploy Azure Function
+name: Deploy Azure Function with Terraform
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    env:
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      # 1️⃣ Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 1.7.0
-        terraform_wrapper: true
+      # 2️⃣ Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
 
-    - name: Terraform Init
-      run: terraform init
+      # 3️⃣ Login to Azure
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Terraform Plan
-      run: terraform plan -out=tfplan
+      # 4️⃣ Extract Service Principal details from AZURE_CREDENTIALS
+      - name: Set Terraform Variables
+        id: tfvars
+        run: |
+          echo "subscription_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .subscriptionId)" >> $GITHUB_ENV
+          echo "tenant_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)" >> $GITHUB_ENV
+          echo "client_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)" >> $GITHUB_ENV
+          echo "client_secret=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)" >> $GITHUB_ENV
 
-    - name: Terraform Apply
-      run: terraform apply -auto-approve tfplan
+      # 5️⃣ Terraform Init
+      - name: Terraform Init
+        run: terraform init
+
+      # 6️⃣ Terraform Plan
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan -input=false -var "subscription_id=$subscription_id" -var "tenant_id=$tenant_id" -var "client_id=$client_id" -var "client_secret=$client_secret"
+
+      # 7️⃣ Terraform Apply
+      - name: Terraform Apply
+        run: terraform apply -input=false tfplan
+
+      # 8️⃣ Deploy Python Function code to Azure Function App
+      - name: Deploy Azure Function App
+        uses: azure/functions-action@v1
+        with:
+          app-name: azure-be                  # Match your Function App name in Terraform
+          package: ./counter                  # Path to your Python function folder
+          publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
