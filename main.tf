@@ -35,47 +35,28 @@ data "azurerm_resource_group" "devops" {
 }
 
 # -----------------------------
-# Storage Account for Function
+# EXISTING Storage Account
 # -----------------------------
-resource "azurerm_storage_account" "funcsa" {
-  name                     = "azurebefuncsa"
-  resource_group_name      = data.azurerm_resource_group.devops.name
-  location                 = data.azurerm_resource_group.devops.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-}
-
-# -----------------------------
-# Cosmos DB Account (Table API)
-# -----------------------------
-resource "azurerm_cosmosdb_account" "cosmos" {
-  name                = "azure-be"
-  location            = "Canada Central"
+data "azurerm_storage_account" "funcsa" {
+  name                = "azurebefuncsa"
   resource_group_name = data.azurerm_resource_group.devops.name
-  offer_type          = "Standard"
-  kind                = "GlobalDocumentDB"
-
-  consistency_policy {
-    consistency_level = "Session"
-  }
-
-  geo_location {
-    location          = "Canada Central"
-    failover_priority = 0
-  }
-
-  capabilities {
-    name = "EnableTable"
-  }
 }
 
 # -----------------------------
-# Cosmos DB Table
+# EXISTING Cosmos DB Account (Table API)
+# -----------------------------
+data "azurerm_cosmosdb_account" "cosmos" {
+  name                = "azure-be"
+  resource_group_name = data.azurerm_resource_group.devops.name
+}
+
+# -----------------------------
+# Cosmos DB Table (New)
 # -----------------------------
 resource "azurerm_cosmosdb_table" "table" {
   name                = "counter"
   resource_group_name = data.azurerm_resource_group.devops.name
-  account_name        = azurerm_cosmosdb_account.cosmos.name
+  account_name        = data.azurerm_cosmosdb_account.cosmos.name
 }
 
 # -----------------------------
@@ -90,20 +71,20 @@ data "azurerm_service_plan" "function_plan" {
 # Function App
 # -----------------------------
 resource "azurerm_linux_function_app" "function_app" {
-  name                       = "azure-be"
-  location                   = "Canada Central"
-  resource_group_name        = data.azurerm_resource_group.devops.name
-  service_plan_id            = data.azurerm_service_plan.function_plan.id
-  storage_account_name       = azurerm_storage_account.funcsa.name
-  storage_account_access_key = azurerm_storage_account.funcsa.primary_access_key
+  name                        = "azure-be"
+  location                    = "Canada Central"
+  resource_group_name         = data.azurerm_resource_group.devops.name
+  service_plan_id             = data.azurerm_service_plan.function_plan.id
+  storage_account_name        = data.azurerm_storage_account.funcsa.name
+  storage_account_access_key  = data.azurerm_storage_account.funcsa.primary_access_key
   functions_extension_version = "~4"
 
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"         = "python"
-    "AzureWebJobsStorage"              = azurerm_storage_account.funcsa.primary_connection_string
+    "AzureWebJobsStorage"              = data.azurerm_storage_account.funcsa.primary_connection_string
     "TABLE_NAME"                       = azurerm_cosmosdb_table.table.name
-    "COSMOS_TABLE_ENDPOINT"            = azurerm_cosmosdb_account.cosmos.endpoint
-    "COSMOS_TABLE_CONNECTION_STRING"   = "DefaultEndpointsProtocol=https;AccountName=${azurerm_cosmosdb_account.cosmos.name};AccountKey=${azurerm_cosmosdb_account.cosmos.primary_key};TableEndpoint=${azurerm_cosmosdb_account.cosmos.endpoint};"
+    "COSMOS_TABLE_ENDPOINT"            = data.azurerm_cosmosdb_account.cosmos.endpoint
+    "COSMOS_TABLE_CONNECTION_STRING"   = "DefaultEndpointsProtocol=https;AccountName=${data.azurerm_cosmosdb_account.cosmos.name};AccountKey=${data.azurerm_cosmosdb_account.cosmos.primary_key};TableEndpoint=${data.azurerm_cosmosdb_account.cosmos.endpoint};"
   }
 
   site_config {
