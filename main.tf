@@ -13,8 +13,6 @@ terraform {
 provider "azurerm" {
   features {}
 
-  # If running in GitHub Actions with azure/login@v2,
-  # these will automatically be populated from AZURE_CREDENTIALS
   subscription_id = var.subscription_id
   tenant_id       = var.tenant_id
   client_id       = var.client_id
@@ -81,14 +79,11 @@ resource "azurerm_cosmosdb_table" "table" {
 }
 
 # -----------------------------
-# Service Plan for Function App
+# EXISTING Service Plan
 # -----------------------------
-resource "azurerm_service_plan" "function_plan" {
+data "azurerm_service_plan" "function_plan" {
   name                = "azure-be-plan"
-  location            = "Canada Central"
   resource_group_name = data.azurerm_resource_group.devops.name
-  os_type             = "Linux"
-  sku_name            = "Y1"
 }
 
 # -----------------------------
@@ -98,7 +93,7 @@ resource "azurerm_linux_function_app" "function_app" {
   name                       = "azure-be"
   location                   = "Canada Central"
   resource_group_name        = data.azurerm_resource_group.devops.name
-  service_plan_id            = azurerm_service_plan.function_plan.id
+  service_plan_id            = data.azurerm_service_plan.function_plan.id
   storage_account_name       = azurerm_storage_account.funcsa.name
   storage_account_access_key = azurerm_storage_account.funcsa.primary_access_key
   functions_extension_version = "~4"
