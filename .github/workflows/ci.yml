@@ -26,35 +26,42 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # 4️⃣ Extract SP credentials from AZURE_CREDENTIALS and set as ENV
-      - name: Set Terraform Environment Variables
+      # 4️⃣ Set Terraform Variables
+      - name: Set Terraform Variables
         run: |
-          echo "ARM_SUBSCRIPTION_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .subscriptionId)" >> $GITHUB_ENV
-          echo "ARM_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)" >> $GITHUB_ENV
-          echo "ARM_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)" >> $GITHUB_ENV
-          echo "ARM_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)" >> $GITHUB_ENV
+          echo "subscription_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .subscriptionId)" >> $GITHUB_ENV
+          echo "tenant_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)" >> $GITHUB_ENV
+          echo "client_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)" >> $GITHUB_ENV
+          echo "client_secret=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)" >> $GITHUB_ENV
 
       # 5️⃣ Terraform Init
       - name: Terraform Init
         run: terraform init
 
-      # 6️⃣ Terraform Plan (multiline fixed)
-      - name: Terraform Plan
+      # 6️⃣ Import existing resources (ignore errors if already imported)
+      - name: Terraform Import Existing Resources
         run: |
-          terraform plan -out=tfplan -input=false \
-            -var "subscription_id=${{ env.ARM_SUBSCRIPTION_ID }}" \
-            -var "tenant_id=${{ env.ARM_TENANT_ID }}" \
-            -var "client_id=${{ env.ARM_CLIENT_ID }}" \
-            -var "client_secret=${{ env.ARM_CLIENT_SECRET }}"
+          terraform import azurerm_storage_account.funcsa /subscriptions/${{ env.subscription_id }}/resourceGroups/DevOps/providers/Microsoft.Storage/storageAccounts/azurebefuncsa || true
+          terraform import azurerm_cosmosdb_account.db /subscriptions/${{ env.subscription_id }}/resourceGroups/DevOps/providers/Microsoft.DocumentDB/databaseAccounts/azure-be || true
+          terraform import azurerm_service_plan.function_plan /subscriptions/${{ env.subscription_id }}/resourceGroups/DevOps/providers/Microsoft.Web/serverFarms/azure-be-plan || true
+          terraform import azurerm_cosmosdb_table.table /subscriptions/${{ env.subscription_id }}/resourceGroups/DevOps/providers/Microsoft.DocumentDB/databaseAccounts/azure-be/tables/counter || true
 
-      # 7️⃣ Terraform Apply
+      # 7️⃣ Terraform Plan
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan -input=false \
+          -var "subscription_id=${{ env.subscription_id }}" \
+          -var "tenant_id=${{ env.tenant_id }}" \
+          -var "client_id=${{ env.client_id }}" \
+          -var "client_secret=${{ env.client_secret }}"
+
+      # 8️⃣ Terraform Apply
       - name: Terraform Apply
         run: terraform apply -input=false -auto-approve tfplan
 
-      # 8️⃣ Deploy Python Function to Azure Function App
+      # 9️⃣ Deploy Python Function code to Azure Function App
       - name: Deploy Azure Function App
         uses: azure/functions-action@v1
         with:
-          app-name: azure-be                     # Must match Function App name in Terraform
-          package: ./counter                     # Path to your Python function folder
+          app-name: azure-be                  # Match your Function App name in Terraform
+          package: ./counter                  # Path to your Python function folder
           publish-profile: ${{ secrets.AZURE_FUNCTION_PUBLISH_PROFILE }}
