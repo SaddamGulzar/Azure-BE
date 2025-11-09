@@ -38,15 +38,7 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      # 6️⃣ Import existing resources (ignore errors if already imported)
-      - name: Terraform Import Existing Resources
-        run: |
-          terraform import azurerm_storage_account.funcsa /subscriptions/${{ env.subscription_id }}/resourceGroups/DevOps/providers/Microsoft.Storage/storageAccounts/azurebefuncsa || true
-          terraform import azurerm_cosmosdb_account.db /subscriptions/${{ env.subscription_id }}/resourceGroups/DevOps/providers/Microsoft.DocumentDB/databaseAccounts/azure-be || true
-          terraform import azurerm_service_plan.function_plan /subscriptions/${{ env.subscription_id }}/resourceGroups/DevOps/providers/Microsoft.Web/serverFarms/azure-be-plan || true
-          terraform import azurerm_cosmosdb_table.table /subscriptions/${{ env.subscription_id }}/resourceGroups/DevOps/providers/Microsoft.DocumentDB/databaseAccounts/azure-be/tables/counter || true
-
-      # 7️⃣ Terraform Plan
+      # 6️⃣ Terraform Plan
       - name: Terraform Plan
         run: terraform plan -out=tfplan -input=false \
           -var "subscription_id=${{ env.subscription_id }}" \
@@ -54,11 +46,11 @@ jobs:
           -var "client_id=${{ env.client_id }}" \
           -var "client_secret=${{ env.client_secret }}"
 
-      # 8️⃣ Terraform Apply
+      # 7️⃣ Terraform Apply
       - name: Terraform Apply
         run: terraform apply -input=false -auto-approve tfplan
 
-      # 9️⃣ Deploy Python Function code to Azure Function App
+      # 8️⃣ Deploy Python Function code to Azure Function App
       - name: Deploy Azure Function App
         uses: azure/functions-action@v1
         with:
