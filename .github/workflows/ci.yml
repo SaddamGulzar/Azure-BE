@@ -38,13 +38,9 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
-      # 6️⃣ Terraform Plan
+      # 6️⃣ Terraform Plan (single-line to avoid "Too many arguments")
       - name: Terraform Plan
-        run: terraform plan -out=tfplan -input=false \
-          -var "subscription_id=${{ env.subscription_id }}" \
-          -var "tenant_id=${{ env.tenant_id }}" \
-          -var "client_id=${{ env.client_id }}" \
-          -var "client_secret=${{ env.client_secret }}"
+        run: terraform plan -out=tfplan -input=false -var "subscription_id=${{ env.subscription_id }}" -var "tenant_id=${{ env.tenant_id }}" -var "client_id=${{ env.client_id }}" -var "client_secret=${{ env.client_secret }}"
 
       # 7️⃣ Terraform Apply
       - name: Terraform Apply
