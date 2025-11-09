@@ -43,7 +43,7 @@ data "azurerm_storage_account" "funcsa" {
 }
 
 # -----------------------------
-# EXISTING Cosmos DB Account (Table API)
+# EXISTING Cosmos DB Account
 # -----------------------------
 data "azurerm_cosmosdb_account" "cosmos" {
   name                = "azure-be"
@@ -51,9 +51,9 @@ data "azurerm_cosmosdb_account" "cosmos" {
 }
 
 # -----------------------------
-# Cosmos DB Table (New)
+# EXISTING Cosmos DB Table
 # -----------------------------
-resource "azurerm_cosmosdb_table" "table" {
+data "azurerm_cosmosdb_table" "table" {
   name                = "counter"
   resource_group_name = data.azurerm_resource_group.devops.name
   account_name        = data.azurerm_cosmosdb_account.cosmos.name
@@ -82,7 +82,7 @@ resource "azurerm_linux_function_app" "function_app" {
   app_settings = {
     "FUNCTIONS_WORKER_RUNTIME"         = "python"
     "AzureWebJobsStorage"              = data.azurerm_storage_account.funcsa.primary_connection_string
-    "TABLE_NAME"                       = azurerm_cosmosdb_table.table.name
+    "TABLE_NAME"                       = data.azurerm_cosmosdb_table.table.name
     "COSMOS_TABLE_ENDPOINT"            = data.azurerm_cosmosdb_account.cosmos.endpoint
     "COSMOS_TABLE_CONNECTION_STRING"   = "DefaultEndpointsProtocol=https;AccountName=${data.azurerm_cosmosdb_account.cosmos.name};AccountKey=${data.azurerm_cosmosdb_account.cosmos.primary_key};TableEndpoint=${data.azurerm_cosmosdb_account.cosmos.endpoint};"
   }
